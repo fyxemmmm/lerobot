@@ -48,7 +48,7 @@ repos:
     -   id: pyupgrade
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.13
+    rev: v0.12.1
     hooks:
       - id: ruff
         args: [--fix]
@@ -62,12 +62,12 @@ repos:
       - id: gitleaks
 
   - repo: https://github.com/woodruffw/zizmor-pre-commit
-    rev: v1.9.0
+    rev: v1.10.0
     hooks:
       - id: zizmor
 
   - repo: https://github.com/PyCQA/bandit
-    rev: 1.8.3
+    rev: 1.8.5
     hooks:
     - id: bandit
       args: ["-c", "pyproject.toml"]
