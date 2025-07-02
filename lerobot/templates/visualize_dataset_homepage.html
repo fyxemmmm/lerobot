@@ -31,6 +31,15 @@
 
             <p class="text-xl mb-4"></p>
             <div class="text-left inline-block">
+                {% if local_datasets %}
+                <h3 class="font-semibold mb-2 mt-4">本地数据集:</h3>
+                <ul class="list-disc list-inside">
+                    {% for dataset in local_datasets %}
+                        <li><a href="/{{ dataset }}" class="text-green-300 hover:text-green-100 hover:underline">{{ dataset }}</a></li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                
                 <h3 class="font-semibold mb-2 mt-4">Example Datasets:</h3>
                 <ul class="list-disc list-inside">
                     {% for dataset in featured_datasets %}
