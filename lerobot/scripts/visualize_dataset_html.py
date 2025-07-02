@@ -87,7 +87,8 @@ def run_server(
 
     @app.route("/")
     def hommepage(dataset=dataset):
-        if dataset:
+        print("ddddd1111", dataset)
+        if dataset:  # none
             dataset_namespace, dataset_name = dataset.repo_id.split("/")
             return redirect(
                 url_for(
@@ -105,6 +106,7 @@ def run_server(
         if "episode" in all_params:
             episode_param = int(all_params["episode"])
 
+        print("xxxx",dataset_param, episode_param) # none none
         if dataset_param:
             dataset_namespace, dataset_name = dataset_param.split("/")
             return redirect(
@@ -300,7 +302,7 @@ def run_server(
                 
                 print(f"Videos info created: {len(videos_info)} videos")
                 
-                print(f"Available episode keys: {list(dataset.meta.episodes.keys())}")
+                # print(f"Available episode keys: {list(dataset.meta.episodes.keys())}")
                 if episode_id in dataset.meta.episodes:
                     tasks = dataset.meta.episodes[episode_id]["tasks"]
                     print(f"Tasks retrieved: {tasks}")
@@ -582,6 +584,8 @@ def visualize_dataset_html(
 
     static_dir = output_dir / "static"
     static_dir.mkdir(parents=True, exist_ok=True)
+
+    print("dssss", dataset)
 
     if dataset is None:
         if serve:
