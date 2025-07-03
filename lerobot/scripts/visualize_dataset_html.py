@@ -387,6 +387,221 @@ def run_server(
             traceback.print_exc()
             return f"Error rendering template: {e}", 500
 
+    # 新的路由：使用查询参数的形式 /lerobothtml?subdir=xxx&episode=xxx
+    @app.route("/lerobothtml")
+    def show_lerobothtml():
+        # 从查询参数中获取subdir和episode
+        subdir_path = request.args.get('subdir')
+        episode_id = request.args.get('episode', type=int)
+        
+        print(f"Handling lerobothtml request - subdir: {subdir_path}, episode: {episode_id}")
+        
+        # 如果没有subdir参数，返回错误
+        if not subdir_path:
+            return "Missing 'subdir' parameter. Example: /lerobothtml?subdir=aloha_mobile_cabinet&episode=0", 400
+        
+        # 如果没有episode参数，自动重定向到episode_0
+        if episode_id is None:
+            print(f"No episode specified, redirecting to episode 0 for subdir: {subdir_path}")
+            # 保留所有其他查询参数（如t=时间参数）
+            args = request.args.copy()
+            args['episode'] = 0
+            return redirect(url_for('show_lerobothtml', **args))
+        
+        # 执行与原来subdir路由相同的逻辑
+        try:
+            if root:
+                print(f"Loading dataset from subdir path: {subdir_path} from root: {root}")
+                
+                # 直接使用 root/subdir_path 作为数据集路径
+                dataset_path = Path(root) / subdir_path
+                print(f"Dataset path: {dataset_path}")
+                
+                expected_path = dataset_path / 'meta' / 'info.json'
+                print(f"Expected path: {expected_path}")
+                
+                if not expected_path.exists():
+                    return f"Dataset not found at path: {dataset_path}", 404
+                
+                try:
+                    # 创建一个虚拟的repo_id用于兼容性
+                    repo_id = f"local/{subdir_path.split('/')[-1]}"
+                    dataset = LocalLeRobotDataset(repo_id, dataset_path, use_direct_path=True)
+                    print(f"Successfully loaded dataset from subdir: {subdir_path}")
+                    
+                    # 为这个本地数据集创建视频符号链接
+                    static_folder = Path(app.static_folder)
+                    # 使用完整的subdir_path，将斜杠替换为下划线避免冲突
+                    safe_subdir_name = subdir_path.replace('/', '_')
+                    dataset_videos_dir = static_folder / f"videos_{safe_subdir_name}"
+                    
+                    # 删除现有的符号链接（无论是否损坏）
+                    if dataset_videos_dir.exists() or dataset_videos_dir.is_symlink():
+                        try:
+                            dataset_videos_dir.unlink()
+                            print(f"Removed existing dataset symlink: {dataset_videos_dir}")
+                        except Exception as e:
+                            print(f"Warning: Could not remove existing dataset symlink: {e}")
+                            try:
+                                dataset_videos_dir.unlink(missing_ok=True)
+                            except:
+                                pass
+                    
+                    # 创建新的符号链接
+                    try:
+                        dataset_videos_dir.symlink_to((dataset.root / "videos").resolve().as_posix())
+                        print(f"Created video symlink: {dataset_videos_dir} -> {dataset.root / 'videos'}")
+                    except Exception as e:
+                        print(f"Error creating dataset video symlink: {e}")
+                        # 如果符号链接创建失败，尝试清理并重试
+                        import os
+                        if dataset_videos_dir.exists():
+                            os.remove(dataset_videos_dir)
+                        dataset_videos_dir.symlink_to((dataset.root / "videos").resolve().as_posix())
+                        print(f"Retry: Created video symlink: {dataset_videos_dir} -> {dataset.root / 'videos'}")
+                    
+                    # 创建通用的videos链接指向当前数据集
+                    generic_videos_dir = static_folder / "videos"
+                    
+                    # 删除现有的通用符号链接（无论是否损坏）
+                    if generic_videos_dir.exists() or generic_videos_dir.is_symlink():
+                        try:
+                            generic_videos_dir.unlink()
+                            print(f"Removed existing generic symlink: {generic_videos_dir}")
+                        except Exception as e:
+                            print(f"Warning: Could not remove existing generic symlink: {e}")
+                            try:
+                                generic_videos_dir.unlink(missing_ok=True)
+                            except:
+                                pass
+                    
+                    # 创建新的通用符号链接
+                    videos_target = (dataset.root / "videos").resolve()
+                    try:
+                        generic_videos_dir.symlink_to(videos_target.as_posix())
+                        print(f"Created generic video symlink: {generic_videos_dir} -> {videos_target}")
+                        print(f"Symlink exists: {generic_videos_dir.exists()}")
+                        print(f"Target exists: {videos_target.exists()}")
+                    except Exception as e:
+                        print(f"Error creating generic symlink: {e}")
+                        # 如果符号链接创建失败，尝试清理并重试
+                        import os
+                        if generic_videos_dir.exists():
+                            os.remove(generic_videos_dir)
+                        generic_videos_dir.symlink_to(videos_target.as_posix())
+                        print(f"Retry: Created generic video symlink: {generic_videos_dir} -> {videos_target}")
+                    
+                except Exception as e:
+                    print(f"Error loading dataset from subdir: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    return f"Error loading dataset from subdir {subdir_path}: {e}", 500
+            else:
+                return "Root directory not specified", 400
+                
+        except Exception as e:
+            print(f"Error in lerobothtml route: {e}")
+            import traceback
+            traceback.print_exc()
+            return f"Error processing lerobothtml request: {e}", 500
+
+        # 处理数据集版本检查和数据获取（复用原来的逻辑）
+        try:
+            if isinstance(dataset, LocalLeRobotDataset):
+                dataset_version = dataset.info.get("codebase_version", "v2.1")
+            else:
+                dataset_version = (
+                    str(dataset.meta._version) if isinstance(dataset, LeRobotDataset) else dataset.codebase_version
+                )
+            
+            match = re.search(r"v(\d+)\.", dataset_version)
+            if match:
+                major_version = int(match.group(1))
+                if major_version < 2:
+                    return "Make sure to convert your LeRobotDataset to v2 & above."
+
+            print(f"Getting episode data for episode {episode_id}")
+            episode_data_csv_str, columns, ignored_columns = get_episode_data(dataset, episode_id)
+            print(f"Episode data retrieved successfully")
+        except Exception as e:
+            print(f"Error in episode data processing: {e}")
+            import traceback
+            traceback.print_exc()
+            return f"Error processing episode data: {e}", 500
+
+        try:
+            print(f"Creating dataset_info for {type(dataset)}")
+            dataset_info = {
+                "repo_id": f"lerobothtml/{subdir_path}",
+                "num_samples": dataset.num_frames,
+                "num_episodes": dataset.num_episodes,
+                "fps": dataset.fps,
+            }
+            print(f"Dataset info created successfully: {dataset_info}")
+        except Exception as e:
+            print(f"Error creating dataset_info: {e}")
+            import traceback
+            traceback.print_exc()
+            return f"Error creating dataset info: {e}", 500
+
+        # 处理视频信息
+        try:
+            print(f"Processing dataset videos for episode {episode_id}")
+            video_paths = [
+                dataset.get_video_file_path(episode_id, key) for key in dataset.video_keys
+            ]
+            print(f"Video paths: {video_paths}")
+            
+            # 生成相对于videos目录的路径，因为我们创建了符号链接
+            videos_info = []
+            for video_path in video_paths:
+                # 获取相对于dataset root/videos的路径
+                relative_video_path = video_path.relative_to(dataset.root / "videos")
+                video_url = url_for("static", filename=f"videos/{relative_video_path}")
+                videos_info.append({
+                    "url": video_url,
+                    "filename": video_path.parent.name,
+                })
+                print(f"Video URL: {video_url}")
+            
+            print(f"Videos info created: {len(videos_info)} videos")
+            
+            # 获取任务信息
+            if episode_id in dataset.meta.episodes:
+                tasks = dataset.meta.episodes[episode_id]["tasks"]
+                print(f"Tasks retrieved: {tasks}")
+            else:
+                print(f"Episode {episode_id} not found, using empty tasks")
+                tasks = []
+                
+        except Exception as e:
+            print(f"Error in video processing: {e}")
+            import traceback
+            traceback.print_exc()
+            return f"Error processing videos: {e}", 500
+
+        videos_info[0]["language_instruction"] = tasks
+
+        episodes = list(range(dataset.num_episodes))
+
+        print(f"Rendering template with {len(videos_info)} videos")
+        try:
+            return render_template(
+                "visualize_dataset_template.html",
+                episode_id=episode_id,
+                episodes=episodes,
+                dataset_info=dataset_info,
+                videos_info=videos_info,
+                episode_data_csv_str=episode_data_csv_str,
+                columns=columns,
+                ignored_columns=ignored_columns,
+            )
+        except Exception as e:
+            print(f"Error rendering template: {e}")
+            import traceback
+            traceback.print_exc()
+            return f"Error rendering template: {e}", 500
+
     # 新的路由：自动跳转到subdir路径的第一个episode
     @app.route("/subdir/<path:subdir_path>")
     @app.route("/subdir/<path:subdir_path>/")
