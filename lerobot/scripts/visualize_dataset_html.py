@@ -570,10 +570,12 @@ def visualize_dataset_html(
     template_dir = Path(__file__).resolve().parent.parent / "templates"
 
     if output_dir is None:
+        print("output_dir is None")
         # Create a temporary directory that will be automatically cleaned up
         output_dir = tempfile.mkdtemp(prefix="lerobot_visualize_dataset_")
 
     output_dir = Path(output_dir)
+    print("output_dir", output_dir)
     if output_dir.exists():
         if force_override:
             shutil.rmtree(output_dir)
@@ -584,6 +586,7 @@ def visualize_dataset_html(
 
     static_dir = output_dir / "static"
     static_dir.mkdir(parents=True, exist_ok=True)
+    print("static_dir", static_dir)
 
     print("dssss", dataset)
 
