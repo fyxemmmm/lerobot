@@ -830,11 +830,26 @@ def get_episode_data(dataset, episode_index):
     This file will be loaded by Dygraph javascript to plot data in real time."""
     columns = []
 
-    selected_columns = [col for col, ft in dataset.features.items() if ft["dtype"] in ["float32", "int32"]]
-    selected_columns.remove("timestamp")
+    # 扩展列选择逻辑，支持object类型的数值数据
+    selected_columns = []
+    for col in dataset.features.keys():
+        if col == "timestamp":
+            continue
+        
+        feature_info = dataset.features[col]
+        if feature_info["dtype"] in ["float32", "int32"]:
+            selected_columns.append(col)
+        elif feature_info["dtype"] == "object":
+            # 检查是否是数值数组（不是视频数据）
+            if "video" not in feature_info.get("info", {}):
+                selected_columns.append(col)
+    
+    # 移除timestamp后再检查
+    if "timestamp" in selected_columns:
+        selected_columns.remove("timestamp")
 
     ignored_columns = []
-    for column_name in selected_columns:
+    for column_name in selected_columns[:]:  # 使用切片复制
         shape = dataset.features[column_name]["shape"]
         shape_dim = len(shape)
         if shape_dim > 1:
