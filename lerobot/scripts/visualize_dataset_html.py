@@ -595,6 +595,8 @@ def run_server(
                 episode_data_csv_str=episode_data_csv_str,
                 columns=columns,
                 ignored_columns=ignored_columns,
+                subdir_path=subdir_path,
+                is_lerobothtml=True,
             )
         except Exception as e:
             print(f"Error rendering template: {e}")

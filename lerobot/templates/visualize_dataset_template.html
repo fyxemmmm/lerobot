@@ -42,9 +42,15 @@
             <ul>
                 <template x-for="episode in paginatedEpisodes" :key="episode">
                     <li class="font-mono text-sm mt-0.5">
+                        {% if is_lerobothtml %}
+                        <a :href="'/lerobothtml?subdir={{ subdir_path }}&episode=' + episode"
+                           :class="{'underline': true, 'font-bold -ml-1': episode == {{ episode_id }}}"
+                           x-text="'Episode ' + episode"></a>
+                        {% else %}
                         <a :href="'episode_' + episode"
                            :class="{'underline': true, 'font-bold -ml-1': episode == {{ episode_id }}}"
                            x-text="'Episode ' + episode"></a>
+                        {% endif %}
                     </li>
                 </template>
             </ul>
@@ -79,7 +85,11 @@
                            'font-bold': episode == {{ episode_id }},
                            'border-r': index !== paginatedEpisodes.length - 1
                        }">
+                        {% if is_lerobothtml %}
+                        <a :href="'/lerobothtml?subdir={{ subdir_path }}&episode=' + episode" x-text="episode"></a>
+                        {% else %}
                         <a :href="'episode_' + episode" x-text="episode"></a>
+                        {% endif %}
                     </p>
                 </template>
             </div>
@@ -536,7 +546,18 @@
                 const lowestEpisodeId = episodes.at(0);
                 const highestEpisodeId = episodes.at(-1);
                 if (nextEpisodeId >= lowestEpisodeId && nextEpisodeId <= highestEpisodeId) {
+                    {% if is_lerobothtml %}
+                    // 保持当前URL的时间参数
+                    const url = new URL(window.location.href);
+                    const timeParam = url.searchParams.get('t');
+                    let newUrl = `/lerobothtml?subdir={{ subdir_path }}&episode=${nextEpisodeId}`;
+                    if (timeParam) {
+                        newUrl += `&t=${timeParam}`;
+                    }
+                    window.location.href = newUrl;
+                    {% else %}
                     window.location.href = `./episode_${nextEpisodeId}`;
+                    {% endif %}
                 }
             }
         });
