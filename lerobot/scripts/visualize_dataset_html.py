@@ -66,6 +66,7 @@ import numpy as np
 import pandas as pd
 import requests
 from flask import Flask, redirect, render_template, request, url_for
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from lerobot import available_datasets
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
@@ -84,6 +85,40 @@ def run_server(
 ):
     app = Flask(__name__, static_folder=static_folder.resolve(), template_folder=template_folder.resolve())
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0  # specifying not to cache
+    
+    # 支持nginx反向代理
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+    
+    def get_static_url(filename):
+        """生成静态文件URL，支持nginx反向代理子路径"""
+        # 尝试使用Flask的url_for，如果在反向代理环境下会自动处理前缀
+        try:
+            static_url = url_for("static", filename=filename)
+            print(f"Generated static URL: {static_url} for filename: {filename}")
+            
+            # 检查当前请求路径，如果包含前缀，确保静态URL也包含相同前缀
+            current_path = request.path
+            print(f"Current request path: {current_path}")
+            
+            # 如果当前路径包含前缀（比如 /xiangmu/lerobothtml），但静态URL没有包含
+            if current_path.startswith('/') and '/' in current_path[1:]:
+                path_parts = current_path[1:].split('/')
+                if len(path_parts) > 1 and path_parts[0] != 'static':
+                    # 检测到可能的前缀路径
+                    prefix = path_parts[0]
+                    print(f"Detected path prefix: {prefix}")
+                    
+                    # 如果静态URL不包含这个前缀，添加它
+                    if not static_url.startswith(f'/{prefix}/static'):
+                        if static_url.startswith('/static'):
+                            static_url = f'/{prefix}{static_url}'
+                            print(f"Added prefix to static URL: {static_url}")
+            
+            return static_url
+        except Exception as e:
+            print(f"url_for failed: {e}, using relative path")
+            # 如果url_for失败，生成相对路径
+            return f"./static/{filename}"
 
     # 新的路由：使用查询参数的形式 /lerobothtml?subdir=xxx&episode=xxx
     @app.route("/lerobothtml")
@@ -232,8 +267,8 @@ def run_server(
             for video_path in video_paths:
                 # 获取相对于dataset root/videos的路径
                 relative_video_path = video_path.relative_to(dataset.root / "videos")
-                # 使用subdir/videos的路径格式
-                video_url = url_for("static", filename=f"{subdir_path}/videos/{relative_video_path}")
+                # 使用subdir/videos的路径格式，通过辅助函数生成URL以支持反向代理
+                video_url = get_static_url(f"{subdir_path}/videos/{relative_video_path}")
                 videos_info.append({
                     "url": video_url,
                     "filename": video_path.parent.name,
