@@ -129,65 +129,42 @@ def run_server(
                     
                     # 为这个本地数据集创建视频符号链接
                     static_folder = Path(app.static_folder)
-                    # 使用完整的subdir_path，将斜杠替换为下划线避免冲突
-                    safe_subdir_name = subdir_path.replace('/', '_')
-                    dataset_videos_dir = static_folder / f"videos_{safe_subdir_name}"
+                    
+                    # 创建subdir目录结构在static文件夹下
+                    subdir_static_dir = static_folder / subdir_path
+                    subdir_static_dir.mkdir(parents=True, exist_ok=True)
+                    print(f"Created subdir static directory: {subdir_static_dir}")
+                    
+                    # 在subdir目录下创建videos符号链接
+                    subdir_videos_dir = subdir_static_dir / "videos"
                     
                     # 删除现有的符号链接（无论是否损坏）
-                    if dataset_videos_dir.exists() or dataset_videos_dir.is_symlink():
+                    if subdir_videos_dir.exists() or subdir_videos_dir.is_symlink():
                         try:
-                            dataset_videos_dir.unlink()
-                            print(f"Removed existing dataset symlink: {dataset_videos_dir}")
+                            subdir_videos_dir.unlink()
+                            print(f"Removed existing subdir video symlink: {subdir_videos_dir}")
                         except Exception as e:
-                            print(f"Warning: Could not remove existing dataset symlink: {e}")
+                            print(f"Warning: Could not remove existing subdir video symlink: {e}")
                             try:
-                                dataset_videos_dir.unlink(missing_ok=True)
+                                subdir_videos_dir.unlink(missing_ok=True)
                             except:
                                 pass
                     
                     # 创建新的符号链接
-                    try:
-                        dataset_videos_dir.symlink_to((dataset.root / "videos").resolve().as_posix())
-                        print(f"Created video symlink: {dataset_videos_dir} -> {dataset.root / 'videos'}")
-                    except Exception as e:
-                        print(f"Error creating dataset video symlink: {e}")
-                        # 如果符号链接创建失败，尝试清理并重试
-                        import os
-                        if dataset_videos_dir.exists():
-                            os.remove(dataset_videos_dir)
-                        dataset_videos_dir.symlink_to((dataset.root / "videos").resolve().as_posix())
-                        print(f"Retry: Created video symlink: {dataset_videos_dir} -> {dataset.root / 'videos'}")
-                    
-                    # 创建通用的videos链接指向当前数据集
-                    generic_videos_dir = static_folder / "videos"
-                    
-                    # 删除现有的通用符号链接（无论是否损坏）
-                    if generic_videos_dir.exists() or generic_videos_dir.is_symlink():
-                        try:
-                            generic_videos_dir.unlink()
-                            print(f"Removed existing generic symlink: {generic_videos_dir}")
-                        except Exception as e:
-                            print(f"Warning: Could not remove existing generic symlink: {e}")
-                            try:
-                                generic_videos_dir.unlink(missing_ok=True)
-                            except:
-                                pass
-                    
-                    # 创建新的通用符号链接
                     videos_target = (dataset.root / "videos").resolve()
                     try:
-                        generic_videos_dir.symlink_to(videos_target.as_posix())
-                        print(f"Created generic video symlink: {generic_videos_dir} -> {videos_target}")
-                        print(f"Symlink exists: {generic_videos_dir.exists()}")
+                        subdir_videos_dir.symlink_to(videos_target.as_posix())
+                        print(f"Created subdir video symlink: {subdir_videos_dir} -> {videos_target}")
+                        print(f"Symlink exists: {subdir_videos_dir.exists()}")
                         print(f"Target exists: {videos_target.exists()}")
                     except Exception as e:
-                        print(f"Error creating generic symlink: {e}")
+                        print(f"Error creating subdir video symlink: {e}")
                         # 如果符号链接创建失败，尝试清理并重试
                         import os
-                        if generic_videos_dir.exists():
-                            os.remove(generic_videos_dir)
-                        generic_videos_dir.symlink_to(videos_target.as_posix())
-                        print(f"Retry: Created generic video symlink: {generic_videos_dir} -> {videos_target}")
+                        if subdir_videos_dir.exists():
+                            os.remove(subdir_videos_dir)
+                        subdir_videos_dir.symlink_to(videos_target.as_posix())
+                        print(f"Retry: Created subdir video symlink: {subdir_videos_dir} -> {videos_target}")
                     
                 except Exception as e:
                     print(f"Error loading dataset from subdir: {e}")
@@ -250,12 +227,13 @@ def run_server(
             ]
             print(f"Video paths: {video_paths}")
             
-            # 生成相对于videos目录的路径，因为我们创建了符号链接
+            # 生成相对于videos目录的路径，使用subdir前缀
             videos_info = []
             for video_path in video_paths:
                 # 获取相对于dataset root/videos的路径
                 relative_video_path = video_path.relative_to(dataset.root / "videos")
-                video_url = url_for("static", filename=f"videos/{relative_video_path}")
+                # 使用subdir/videos的路径格式
+                video_url = url_for("static", filename=f"{subdir_path}/videos/{relative_video_path}")
                 videos_info.append({
                     "url": video_url,
                     "filename": video_path.parent.name,
