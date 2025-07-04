@@ -619,7 +619,9 @@ def visualize_dataset_html(
 ):
     init_logging()
 
-    template_dir = Path(__file__).resolve().parent.parent / "templates"
+    # 修改模板目录为当前文件所在目录的template子目录
+    template_dir = Path(__file__).resolve().parent / "template"
+    print(f"Using template directory: {template_dir}")
 
     if output_dir is None:
         print("output_dir is None")
