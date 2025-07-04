@@ -68,10 +68,16 @@ import requests
 from flask import Flask, redirect, render_template, request, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from lerobot import available_datasets
-from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
-from lerobot.common.datasets.utils import IterableNamespace
-from lerobot.common.utils.utils import init_logging
+# 尝试从lerobot包导入，如果失败则从本地compat模块导入
+try:
+    from lerobot import available_datasets
+    from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
+    from lerobot.common.datasets.utils import IterableNamespace
+    from lerobot.common.utils.utils import init_logging
+    print("成功从lerobot包导入所需模块")
+except ImportError:
+    print("未找到lerobot包，使用本地兼容模块")
+    from compat import available_datasets, LeRobotDataset, IterableNamespace, init_logging
 
 
 def run_server(
