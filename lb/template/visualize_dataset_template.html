@@ -108,11 +108,11 @@
 
         <!-- Error message -->
         <div class="font-medium text-orange-700 hidden" :class="{ 'hidden': !videoCodecError }">
-            <p>Videos could NOT play because your browser does not support the video codec used in this dataset.</p>
+            <p>Videos could NOT play because <a href="https://en.wikipedia.org/wiki/AV1" target="_blank" class="underline">AV1</a> decoding is not available on your browser.</p>
             <ul class="list-decimal list-inside">
-                <li><span class="italic">Common cause:</span> Videos encoded with MPEG-4 Simple Profile are not well supported by modern browsers.</li>
-                <li><span class="italic">Solution:</span> Convert videos to H.264 format using: <code class="bg-gray-800 px-1 rounded">ffmpeg -i input.mp4 -c:v libx264 -profile:v baseline output.mp4</code></li>
-                <li><span class="italic">Alternative:</span> Use the Rerun 3D visualizer instead: <code class="bg-gray-800 px-1 rounded">python lerobot/scripts/visualize_dataset.py</code></li>
+                <li>If iPhone: <span class="italic">It is supported with A17 chip or higher.</span></li>
+                <li>If Mac with Safari: <span class="italic">It is supported on most browsers except Safari with M1 chip or higher and on Safari with M3 chip or higher.</span></li>
+                <li>Other: <span class="italic">Contact the maintainers on LeRobot discord channel:</span> <a href="https://discord.com/invite/s3KuuzsPFb" target="_blank" class="underline">https://discord.com/invite/s3KuuzsPFb</a></li>
             </ul>
         </div>
 
@@ -314,14 +314,8 @@
                 init() {
                     // check if videos can play
                     const dummyVideo = document.createElement('video');
-                    // Check for multiple codec support: AV1, H.264, and MPEG-4
-                    const canPlayAV1 = dummyVideo.canPlayType('video/mp4; codecs="av01.0.05M.08"');
-                    const canPlayH264 = dummyVideo.canPlayType('video/mp4; codecs="avc1.42E01E"');
-                    const canPlayMPEG4 = dummyVideo.canPlayType('video/mp4; codecs="mp4v.20.9"');
-                    const canPlayBasicMP4 = dummyVideo.canPlayType('video/mp4');
-                    
-                    // If none of the codecs are supported, show error
-                    if(!canPlayAV1 && !canPlayH264 && !canPlayMPEG4 && !canPlayBasicMP4){
+                    const canPlayVideos = dummyVideo.canPlayType('video/mp4; codecs="av01.0.05M.08"'); // codec source: https://huggingface.co/blog/video-encoding#results
+                    if(!canPlayVideos){
                         this.videoCodecError = true;
                     }
                     this.videosKeysSelected = this.videosKeys.map(opt => opt)

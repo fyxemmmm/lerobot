@@ -242,9 +242,7 @@ def run_server(
             
             # 获取任务信息
             if episode_id in dataset.meta.episodes:
-                episode_data = dataset.meta.episodes[episode_id]
-                # 安全地获取tasks，如果不存在则使用空列表
-                tasks = episode_data.get("tasks", [])
+                tasks = dataset.meta.episodes[episode_id]["tasks"]
                 print(f"Tasks retrieved: {tasks}")
             else:
                 print(f"Episode {episode_id} not found, using empty tasks")
@@ -256,16 +254,7 @@ def run_server(
             traceback.print_exc()
             return f"Error processing videos: {e}", 500
 
-        # 安全地设置语言指令
-        if videos_info:
-            videos_info[0]["language_instruction"] = tasks
-        else:
-            # 如果没有视频，创建一个空的videos_info条目
-            videos_info = [{
-                "url": "",
-                "filename": "no_video",
-                "language_instruction": tasks
-            }]
+        videos_info[0]["language_instruction"] = tasks
 
         episodes = list(range(dataset.num_episodes))
 
@@ -401,7 +390,7 @@ class LocalLeRobotDataset:
         self.num_frames = self.info["total_frames"]
         self.total_episodes = self.info["total_episodes"]  # 兼容性
         self.total_frames = self.info["total_frames"]      # 兼容性
-        self.video_keys = [key for key, ft in self.features.items() if ft["dtype"] in ["video", "image"]]
+        self.video_keys = [key for key, ft in self.features.items() if ft["dtype"] == "video"]
         
         # 对象兼容性 - 创建一个简单的meta对象
         class SimpleMeta:
