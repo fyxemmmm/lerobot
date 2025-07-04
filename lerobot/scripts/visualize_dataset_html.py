@@ -257,30 +257,97 @@ def run_server(
         # 处理视频信息
         try:
             print(f"Processing dataset videos for episode {episode_id}")
-            video_paths = [
-                dataset.get_video_file_path(episode_id, key) for key in dataset.video_keys
-            ]
-            print(f"Video paths: {video_paths}")
+            print(f"Dataset video_keys: {dataset.video_keys}")
+            print(f"Dataset root: {dataset.root}")
+            print(f"Videos directory exists: {(dataset.root / 'videos').exists()}")
+            
+            if dataset.video_keys:
+                video_paths = [
+                    dataset.get_video_file_path(episode_id, key) for key in dataset.video_keys
+                ]
+                print(f"Video paths: {video_paths}")
+                
+                # 检查视频文件是否真实存在
+                for i, video_path in enumerate(video_paths):
+                    print(f"Video {i}: {video_path}")
+                    print(f"  - Path exists: {video_path.exists()}")
+                    if video_path.exists():
+                        print(f"  - File size: {video_path.stat().st_size} bytes")
+                    else:
+                        print(f"  - Parent directory exists: {video_path.parent.exists()}")
+                        if video_path.parent.exists():
+                            print(f"  - Files in parent directory: {list(video_path.parent.iterdir())}")
+            else:
+                print("No video keys found - trying to manually scan for videos")
+                videos_dir = dataset.root / "videos"
+                if videos_dir.exists():
+                    print(f"Contents of videos directory: {list(videos_dir.iterdir())}")
+                    # 尝试手动查找视频文件
+                    video_paths = []
+                    for chunk_dir in videos_dir.iterdir():
+                        if chunk_dir.is_dir() and chunk_dir.name.startswith('chunk-'):
+                            print(f"Found chunk directory: {chunk_dir}")
+                            for item in chunk_dir.iterdir():
+                                if item.is_dir():
+                                    # 查找视频文件
+                                    for video_file in item.iterdir():
+                                        if video_file.suffix.lower() in ['.mp4', '.avi', '.mov']:
+                                            if f"episode_{episode_id:06d}" in video_file.name:
+                                                video_paths.append(video_file)
+                                                print(f"Found matching video: {video_file}")
+                else:
+                    print(f"Videos directory does not exist: {videos_dir}")
+                    video_paths = []
             
             # 生成相对于videos目录的路径，使用subdir前缀
             videos_info = []
             for video_path in video_paths:
-                # 获取相对于dataset root/videos的路径
-                relative_video_path = video_path.relative_to(dataset.root / "videos")
-                # 使用subdir/videos的路径格式，通过辅助函数生成URL以支持反向代理
-                video_url = get_static_url(f"{subdir_path}/videos/{relative_video_path}")
-                videos_info.append({
-                    "url": video_url,
-                    "filename": video_path.parent.name,
-                })
-                print(f"Video URL: {video_url}")
+                try:
+                    # 获取相对于dataset root/videos的路径
+                    relative_video_path = video_path.relative_to(dataset.root / "videos")
+                    # 使用subdir/videos的路径格式，通过辅助函数生成URL以支持反向代理
+                    video_url = get_static_url(f"{subdir_path}/videos/{relative_video_path}")
+                    
+                    # 尝试从路径中提取合适的文件名
+                    if video_path.parent.name.startswith('observation.images.'):
+                        filename = video_path.parent.name
+                    else:
+                        filename = video_path.parent.name if video_path.parent.name != 'videos' else video_path.stem
+                    
+                    videos_info.append({
+                        "url": video_url,
+                        "filename": filename,
+                    })
+                    print(f"Video URL: {video_url}")
+                    print(f"Video filename: {filename}")
+                except ValueError as e:
+                    print(f"Error processing video path {video_path}: {e}")
+                    # 如果无法计算相对路径，尝试直接使用文件名
+                    try:
+                        # 构建一个简单的相对路径
+                        if 'chunk-' in str(video_path):
+                            # 提取chunk-xxx/folder/file.mp4部分
+                            path_parts = video_path.parts
+                            chunk_idx = next(i for i, part in enumerate(path_parts) if part.startswith('chunk-'))
+                            relative_path = '/'.join(path_parts[chunk_idx:])
+                            video_url = get_static_url(f"{subdir_path}/videos/{relative_path}")
+                            filename = video_path.parent.name
+                            videos_info.append({
+                                "url": video_url,
+                                "filename": filename,
+                            })
+                            print(f"Fallback Video URL: {video_url}")
+                    except Exception as e2:
+                        print(f"Failed to create fallback video info: {e2}")
             
             print(f"Videos info created: {len(videos_info)} videos")
             
             # 获取任务信息
             if episode_id in dataset.meta.episodes:
-                tasks = dataset.meta.episodes[episode_id]["tasks"]
+                episode_data = dataset.meta.episodes[episode_id]
+                tasks = episode_data.get("tasks", [])  # 使用.get()方法安全地获取tasks，如果不存在则返回空列表
                 print(f"Tasks retrieved: {tasks}")
+                print(f"Episode data keys: {list(episode_data.keys())}")  # 调试信息：显示episode数据的所有键
             else:
                 print(f"Episode {episode_id} not found, using empty tasks")
                 tasks = []
@@ -291,7 +358,11 @@ def run_server(
             traceback.print_exc()
             return f"Error processing videos: {e}", 500
 
-        videos_info[0]["language_instruction"] = tasks
+        # 设置语言指令（如果有视频的话）
+        if videos_info:
+            videos_info[0]["language_instruction"] = tasks
+        else:
+            print("Warning: No videos found for this episode")
 
         episodes = list(range(dataset.num_episodes))
 
@@ -451,7 +522,38 @@ class LocalLeRobotDataset:
         self.num_frames = self.info["total_frames"]
         self.total_episodes = self.info["total_episodes"]  # 兼容性
         self.total_frames = self.info["total_frames"]      # 兼容性
-        self.video_keys = [key for key, ft in self.features.items() if ft["dtype"] == "video"]
+        # 识别视频/图像键：支持video和image类型，因为LeRobot中图像通常压缩为视频存储
+        self.video_keys = [key for key, ft in self.features.items() if ft["dtype"] in ["video", "image"]]
+        
+        # 调试信息：打印视频键识别结果
+        print(f"Dataset features: {list(self.features.keys())}")
+        print(f"Features with video dtype: {[(key, ft['dtype']) for key, ft in self.features.items() if ft['dtype'] == 'video']}")
+        print(f"Features with image dtype: {[(key, ft['dtype']) for key, ft in self.features.items() if ft['dtype'] == 'image']}")
+        print(f"All feature dtypes: {[(key, ft['dtype']) for key, ft in self.features.items()]}")
+        print(f"Identified video_keys (video + image): {self.video_keys}")
+        
+        # 如果没有找到视频键，尝试通过其他方式识别
+        if not self.video_keys:
+            # 尝试通过文件名模式识别视频键
+            video_candidates = []
+            for key, ft in self.features.items():
+                if any(word in key.lower() for word in ['camera', 'image', 'video', 'observation']):
+                    video_candidates.append(key)
+            print(f"Video candidates based on name pattern: {video_candidates}")
+            
+            # 如果info中有video_path配置，尝试解析出视频键
+            if "video_path" in self.info:
+                video_path_template = self.info["video_path"]
+                print(f"Video path template: {video_path_template}")
+                # 尝试从路径模板中提取视频键的占位符
+                import re
+                video_key_matches = re.findall(r'\{video_key\}', video_path_template)
+                if video_key_matches:
+                    # 如果模板中有video_key占位符，说明应该有视频
+                    print("Video path template contains video_key placeholder, manually checking for videos...")
+                    self.video_keys = video_candidates  # 使用候选键
+        
+        print(f"Final video_keys: {self.video_keys}")
         
         # 对象兼容性 - 创建一个简单的meta对象
         class SimpleMeta:

@@ -172,7 +172,7 @@
         </div>
 
         <!-- Language instruction -->
-        {% if videos_info[0].language_instruction %}
+        {% if videos_info and videos_info[0].language_instruction %}
         <p class="font-medium mt-2">
             Language Instruction: <span class="italic">{{ videos_info[0].language_instruction }}</span>
         </p>
@@ -329,7 +329,7 @@
 
                     // process CSV data
                     this.videos = document.querySelectorAll('video');
-                    this.video = this.videos[0];
+                    this.video = this.videos.length > 0 ? this.videos[0] : null;
                     this.dygraph = new Dygraph(document.getElementById("graph"), csvUrl, {
                         pixelsPerPoint: 0.01,
                         legend: 'always',
@@ -429,7 +429,7 @@
 
                 // given time t, update the values in the html table with "data[t]"
                 updateTableValues(time) {
-                    if (!this.colors) {
+                    if (!this.colors || !this.video) {
                         return;
                     }
                     let pc = (100 / this.video.duration) * (time === undefined ? this.video.currentTime : time);
