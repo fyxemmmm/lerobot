@@ -1,13 +1,54 @@
 import rerun as rr
 import h5py
 import numpy as np
+import cv2
 
 with h5py.File("proprio_stats.h5", "r") as f:
     timestamps = f['timestamp'][:] # <class 'numpy.ndarray'> [1742793443099683000 1742793443133031000 1742793443166378000...]
     num_timesteps = len(timestamps)
     print(f"时间戳数量: {num_timesteps}")
     
+    # 计算数据时间范围
+    start_time = timestamps[0] / 1e9  # 转换为秒
+    end_time = timestamps[-1] / 1e9
+    data_duration = end_time - start_time
+    print(f"数据时间范围: {data_duration:.2f} 秒")
+    
     rr.init("zhiyuan_robot_data", spawn=True)
+    
+    # 打开视频文件
+    video_path = "cameras/hand_left_color.mp4"
+    cap = cv2.VideoCapture(video_path)
+    
+    video_frames = []  # 初始化空的视频帧列表
+    
+    if not cap.isOpened():
+        print(f"错误：无法打开视频文件 {video_path}")
+        print("将只渲染数据，不包含视频")
+    else:
+        # 获取视频信息
+        video_fps = cap.get(cv2.CAP_PROP_FPS)
+        video_frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        video_duration = video_frame_count / video_fps if video_fps > 0 else 0
+        
+        print(f"视频信息:")
+        print(f"  帧率: {video_fps} FPS")
+        print(f"  总帧数: {video_frame_count}")
+        print(f"  时长: {video_duration:.2f} 秒")
+        
+        # 预加载所有视频帧（可选，用于更好的性能）
+        video_frames = []
+        print("正在预加载视频帧...")
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            # 转换BGR到RGB（OpenCV默认BGR，rerun期望RGB）
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            video_frames.append(frame_rgb)
+        
+        cap.release()
+        print(f"视频帧加载完成: {len(video_frames)} 帧")
     
     # 定义要渲染的数据结构
     data_groups = ['action', 'state']
@@ -47,6 +88,15 @@ with h5py.File("proprio_stats.h5", "r") as f:
         # 将纳秒时间戳转换为秒（除以1e9）
         timestamp_seconds = timestamps[t] / 1e9
         rr.set_time("real_time", timestamp=timestamp_seconds)
+        
+        # 渲染对应的视频帧（如果视频已加载）
+        if len(video_frames) > 0:
+            # 计算当前时间步对应的视频帧索引，使视频从第0帧平铺到最后一帧
+            frame_idx = int(t * len(video_frames) / num_timesteps)
+            # 防止越界
+            frame_idx = min(frame_idx, len(video_frames) - 1)
+            frame = video_frames[frame_idx]
+            rr.log("camera/hand_left", rr.Image(frame))
         
         # 遍历所有数据组和组件
         for group in position_data:
