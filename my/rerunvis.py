@@ -7,7 +7,6 @@ with h5py.File("proprio_stats.h5", "r") as f:
     num_timesteps = len(timestamps)
     print(f"时间戳数量: {num_timesteps}")
     
-    # 初始化 Rerun
     rr.init("zhiyuan_robot_data", spawn=True)
     
     # 定义要渲染的数据结构
@@ -21,6 +20,8 @@ with h5py.File("proprio_stats.h5", "r") as f:
         if group in f:
             position_data[group] = {}
             for component in component_types:
+                # if group == 'state' and component == 'effector':
+                #     continue
                 if component in f[group] and 'position' in f[group][component]:
                     data = f[group][component]['position'][:]
                     print(f"检查数据: {group}/{component}/position, 形状: {data.shape}")
