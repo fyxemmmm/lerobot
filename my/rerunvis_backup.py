@@ -40,8 +40,8 @@ with h5py.File("proprio_stats.h5", "r") as f:
         
         # 遍历所有数据组和组件
         for group in position_data:
-            # if group == 'action':
-                # continue
+            if group == 'action':
+                continue
             for component in position_data[group]:
                 data = position_data[group][component]
                 
